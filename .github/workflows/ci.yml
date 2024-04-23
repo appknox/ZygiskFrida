@@ -1,11 +1,8 @@
 name: CI-Build
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+  release:
+    types:
+      - created
 
 jobs:
   build:
@@ -18,20 +15,22 @@ jobs:
           distribution: temurin
           java-version: 11
           cache: gradle
-      - name: Test Build
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :module:assembleRelease
       - name: Get Module Version
         id: module-version
         run: |
           MODULE_VERSION=$(cat module.gradle | grep "moduleVersion =" | awk -F'"' '{print $2}')
           echo "version=$MODULE_VERSION" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v3
+      - name: Test Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :module:assembleRelease
+          mv ./out/magisk_module_zygisk_release ./out/ZygiskFrida-${{ steps.module-version.outputs.version }}-release
+          mv ./out/magisk_module_riru_release ./out/ZygiskFrida-${{ steps.module-version.outputs.version }}-riru-release
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
         with:
-          name: ZygiskFrida-${{ steps.module-version.outputs.version }}-release
-          path: out/magisk_module_zygisk_release
-      - uses: actions/upload-artifact@v3
-        with:
-          name: ZygiskFrida-${{ steps.module-version.outputs.version }}-riru-release
-          path: out/magisk_module_riru_release
+          files: |
+            ${{ github.workspace }}/out/ZygiskFrida-*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

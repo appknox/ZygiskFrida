@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <optional>
+#include <vector>
 
 #include "rapidjson/document.h"
 #include "rapidjson/istreamwrapper.h"

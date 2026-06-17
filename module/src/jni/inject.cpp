@@ -4,7 +4,6 @@
 
 #include <chrono>
 #include <cinttypes>
-#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -47,7 +46,7 @@ static void delay_start_up(uint64_t start_up_delay_ms) {
         return;
     }
 
-    LOGI("Waiting for configured start up delay %" PRIu64"ms", start_up_delay_ms);
+    LOGI("Waiting for configured start up delay %" PRIu64 "ms", start_up_delay_ms);
 
     int countdown = 0;
     uint64_t delay = start_up_delay_ms;
@@ -93,13 +92,26 @@ static void inject_libs(target_config const &cfg) {
     // Loading the gadget before that will freeze the process
     // before the init has completed. This make the process
     // undiscoverable or otherwise cause issue attaching.
-    wait_for_init(cfg.app_name);
+    //
+    // This concern only applies to listen-interaction gadgets (which block
+    // waiting for a client) and to frida-server discoverability. A
+    // script-interaction gadget just loads its script and returns, so targets
+    // that set inject_on_specialize skip the wait and get injected before
+    // Application.onCreate -- see check_and_inject().
+    if (!cfg.inject_on_specialize) {
+        wait_for_init(cfg.app_name);
+    }
 
     if (cfg.child_gating.enabled) {
         enable_child_gating(cfg.child_gating);
     }
 
-    delay_start_up(cfg.start_up_delay_ms);
+    // Skip the configured start-up delay on the specialize path: sleeping here would block
+    // postAppSpecialize before Application.onCreate (ANR risk) and defeats the point of injecting
+    // early. Same rationale as the wait_for_init skip above.
+    if (!cfg.inject_on_specialize) {
+        delay_start_up(cfg.start_up_delay_ms);
+    }
 
     for (auto &lib_path : cfg.injected_libraries) {
         LOGI("Injecting %s", lib_path.c_str());
@@ -118,15 +130,22 @@ bool check_and_inject(std::string const &app_name) {
     LOGI("App detected: %s", app_name.c_str());
     LOGI("PID: %d", getpid());
 
-
     auto target_config = cfg.value();
     if (!target_config.enabled) {
         LOGI("Injection disabled for %s", app_name.c_str());
         return false;
     }
 
-    std::thread inject_thread(inject_libs, target_config);
-    inject_thread.detach();
+    // When inject_on_specialize is set, inject synchronously on the Zygisk specialize thread so the
+    // dlopen completes before postAppSpecialize returns -> before handleBindApplication -> before
+    // Application.onCreate. This is what lets the gadget's top-level hooks be live before the app's
+    // first anti-tamper read, instead of racing them on a detached thread. Otherwise inject on a
+    // detached thread that first waits for process init (see inject_libs).
+    if (target_config.inject_on_specialize) {
+        inject_libs(target_config);
+    } else {
+        std::thread(inject_libs, target_config).detach();
+    }
 
     return true;
 }

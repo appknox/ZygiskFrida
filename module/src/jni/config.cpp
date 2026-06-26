@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <optional>
+#include <vector>
 
 #include "rapidjson/document.h"
 #include "rapidjson/istreamwrapper.h"
@@ -101,6 +102,16 @@ static std::optional<target_config> deserialize_target_config(const rapidjson::V
         return std::nullopt;
     }
     result.start_up_delay_ms = start_up_delay_ms.GetUint64();
+
+    // Optional; defaults to false so existing configs are unaffected.
+    if (doc.HasMember("inject_on_specialize")) {
+        auto &inject_on_specialize = doc["inject_on_specialize"];
+        if (!inject_on_specialize.IsBool()) {
+            LOGE("invalid config: expected inject_on_specialize to be a bool");
+            return std::nullopt;
+        }
+        result.inject_on_specialize = inject_on_specialize.GetBool();
+    }
 
     auto &injected_libaries = doc["injected_libraries"];
     auto deserialized_libraries = deserialize_libraries(injected_libaries);

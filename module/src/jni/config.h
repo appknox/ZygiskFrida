@@ -24,6 +24,10 @@ struct target_config{
     // first anti-tamper check. Optional; defaults to false. Safe only for
     // script-interaction gadgets (they load their script and return).
     bool inject_on_specialize;
+    // When true, install the early developer-options settings bypass on the
+    // detached-injection path (see install_adb_bypass). Optional; defaults to
+    // false.
+    bool enable_adb_bypasses;
 };
 
 std::optional<target_config> load_config(std::string const& module_dir, std::string const& app_name);

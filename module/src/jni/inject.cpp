@@ -11,6 +11,7 @@
 #include <thread>
 #include <utility>
 
+#include "adb_bypass.h"
 #include "config.h"
 #include "log.h"
 #include "child_gating.h"
@@ -144,7 +145,14 @@ bool check_and_inject(std::string const &app_name) {
     if (target_config.inject_on_specialize) {
         inject_libs(target_config);
     } else {
-        std::thread(inject_libs, target_config).detach();
+        if (target_config.enable_adb_bypasses) {
+            // Neutralize the early Settings.getInt(adb_enabled) dev-mode check
+            // before Application.onCreate.
+            install_adb_bypass();
+        }
+
+        std::thread inject_thread(inject_libs, target_config);
+        inject_thread.detach();
     }
 
     return true;

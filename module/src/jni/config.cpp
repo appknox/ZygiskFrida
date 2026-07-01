@@ -113,6 +113,16 @@ static std::optional<target_config> deserialize_target_config(const rapidjson::V
         result.inject_on_specialize = inject_on_specialize.GetBool();
     }
 
+    // Optional; defaults to false so existing configs are unaffected.
+    if (doc.HasMember("enable_adb_bypasses")) {
+        auto &enable_adb_bypasses = doc["enable_adb_bypasses"];
+        if (!enable_adb_bypasses.IsBool()) {
+            LOGE("invalid config: expected enable_adb_bypasses to be a bool");
+            return std::nullopt;
+        }
+        result.enable_adb_bypasses = enable_adb_bypasses.GetBool();
+    }
+
     auto &injected_libaries = doc["injected_libraries"];
     auto deserialized_libraries = deserialize_libraries(injected_libaries);
     if (!deserialized_libraries.has_value()) {

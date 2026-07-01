@@ -1,8 +1,8 @@
 // Host unit tests for ZygiskFrida config parsing (no device / NDK required).
 //
-// Focus: the inject_on_specialize target option — default, true, false, and
-// invalid-type handling — plus a sanity check that the surrounding target
-// fields still parse.
+// Focus: the inject_on_specialize and enable_adb_bypasses target options —
+// default, true, false, and invalid-type handling — plus a sanity check that
+// the surrounding target fields still parse.
 //
 // Build & run:  module/src/jni/tests/run.sh
 
@@ -84,6 +84,47 @@ int main() {
         std::string(BASE_TARGET) + ",\"inject_on_specialize\": \"yes\"");
     auto cfg = load_config(dir, "com.test.app");
     CHECK(!cfg.has_value(), "wrong-type: config rejected");
+  }
+
+  std::printf("enable_adb_bypasses parsing:\n");
+
+  // 5. Absent -> defaults to false.
+  {
+    auto dir = write_config("adb_absent", BASE_TARGET);
+    auto cfg = load_config(dir, "com.test.app");
+    CHECK(cfg.has_value(), "adb absent: config loads");
+    CHECK(cfg && cfg->enable_adb_bypasses == false,
+          "adb absent: enable_adb_bypasses defaults to false");
+  }
+
+  // 6. Explicit true.
+  {
+    auto dir = write_config(
+        "adb_true", std::string(BASE_TARGET) + ",\"enable_adb_bypasses\": true");
+    auto cfg = load_config(dir, "com.test.app");
+    CHECK(cfg.has_value(), "adb true: config loads");
+    CHECK(cfg && cfg->enable_adb_bypasses == true,
+          "adb true: enable_adb_bypasses parsed as true");
+  }
+
+  // 7. Explicit false.
+  {
+    auto dir = write_config(
+        "adb_false",
+        std::string(BASE_TARGET) + ",\"enable_adb_bypasses\": false");
+    auto cfg = load_config(dir, "com.test.app");
+    CHECK(cfg.has_value(), "adb false: config loads");
+    CHECK(cfg && cfg->enable_adb_bypasses == false,
+          "adb false: enable_adb_bypasses parsed as false");
+  }
+
+  // 8. Wrong type -> whole config rejected (no silent default).
+  {
+    auto dir = write_config(
+        "adb_wrongtype",
+        std::string(BASE_TARGET) + ",\"enable_adb_bypasses\": 1");
+    auto cfg = load_config(dir, "com.test.app");
+    CHECK(!cfg.has_value(), "adb wrong-type: config rejected");
   }
 
   if (g_failures == 0) {
